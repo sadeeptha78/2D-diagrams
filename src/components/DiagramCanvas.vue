@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { drawDocument, mountBoard, patchDocument, pick } from '../board/scene.js'
+import { exportFrame } from '../geometry/exportFrame.js'
 import { diagramBounds, toLocal } from '../geometry/shapes.js'
 import { JSXGraph } from 'jsxgraph'
 import { chooseSaveFile, downloadBlob, downloadText, slugify, writeBlob } from '../persistence/storage.js'
@@ -140,22 +141,10 @@ function onPointerUp() {
   drag = null
 }
 
-async function withExportBoard(drawMode, task) {
-  applyingBox = true
-  drawDocument(board, store.doc, { mode: drawMode, selection: null })
-  applyingBox = false
-  try {
-    await task()
-  } finally {
-    drawAll()
-  }
-}
-
-function svgMarkup() {
-  const rect = board.containerObj.getBoundingClientRect()
-  board.renderer.svgRoot.setAttribute('width', String(Math.round(rect.width)))
-  board.renderer.svgRoot.setAttribute('height', String(Math.round(rect.height)))
-  const uri = board.renderer.dumpToDataURI(false)
+function svgMarkup(source, pixelWidth, pixelHeight) {
+  source.renderer.svgRoot.setAttribute('width', String(pixelWidth))
+  source.renderer.svgRoot.setAttribute('height', String(pixelHeight))
+  const uri = source.renderer.dumpToDataURI(false)
   const encoded = uri.split(',')[1]
   const markup = new TextDecoder().decode(Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0)))
   return markup
@@ -163,15 +152,55 @@ function svgMarkup() {
     .replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/g, '')
 }
 
-async function exportSvg() {
-  const drawMode = store.preview ? 'preview' : 'clean'
-  await withExportBoard(drawMode, async () => {
-    downloadText(`${slugify(store.doc.name)}.svg`, svgMarkup(), 'image/svg+xml')
-  })
+function renderExportMarkup(drawMode) {
+  const rect = board.containerObj.getBoundingClientRect()
+  const frame = exportFrame(store.doc, rect, { preview: drawMode === 'preview' })
+  if (!frame) return null
+  const host = document.createElement('div')
+  host.setAttribute('aria-hidden', 'true')
+  host.style.position = 'fixed'
+  host.style.left = '-12000px'
+  host.style.top = '0'
+  host.style.width = `${frame.pixelWidth}px`
+  host.style.height = `${frame.pixelHeight}px`
+  host.style.pointerEvents = 'none'
+  document.body.appendChild(host)
+  const exportBoard = mountBoard(host)
+  try {
+    exportBoard.resizeContainer(frame.pixelWidth, frame.pixelHeight)
+    drawDocument(exportBoard, {
+      ...store.doc,
+      viewport: { ...store.doc.viewport, boundingBox: frame.box },
+    }, { mode: drawMode, selection: null })
+    return svgMarkup(exportBoard, frame.pixelWidth, frame.pixelHeight)
+  } finally {
+    JSXGraph.freeBoard(exportBoard)
+    host.remove()
+  }
 }
 
-async function renderPng() {
-  const markup = svgMarkup()
+async function exportSvg() {
+  if (!store.doc.objects.length) {
+    store.loadError = 'Add a shape before saving a picture.'
+    return
+  }
+  const drawMode = store.preview ? 'preview' : 'clean'
+  try {
+    const markup = renderExportMarkup(drawMode)
+    if (!markup) {
+      store.loadError = 'Add a shape before saving a picture.'
+      return
+    }
+    downloadText(`${slugify(store.doc.name)}.svg`, markup, 'image/svg+xml')
+    store.loadError = ''
+  } catch {
+    store.loadError = 'Could not save the picture.'
+  }
+}
+
+async function renderPng(drawMode) {
+  const markup = renderExportMarkup(drawMode)
+  if (!markup) return null
   const blob = new Blob([markup], { type: 'image/svg+xml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   try {
@@ -196,23 +225,31 @@ async function renderPng() {
 }
 
 async function exportPng() {
+  if (!store.doc.objects.length) {
+    store.loadError = 'Add a shape before saving a picture.'
+    return false
+  }
   const filename = `${slugify(store.doc.name)}.png`
   const chosen = await chooseSaveFile(filename, {
     description: 'PNG image',
     mime: 'image/png',
     extension: '.png',
   })
-  if (chosen === 'cancelled') return
+  if (chosen === 'cancelled') return false
   const drawMode = store.preview ? 'preview' : 'clean'
   try {
-    await withExportBoard(drawMode, async () => {
-      const png = await renderPng()
-      if (chosen) await writeBlob(chosen, png)
-      else downloadBlob(filename, png)
-    })
+    const png = await renderPng(drawMode)
+    if (!png) {
+      store.loadError = 'Add a shape before saving a picture.'
+      return false
+    }
+    if (chosen) await writeBlob(chosen, png)
+    else downloadBlob(filename, png)
     store.loadError = ''
+    return true
   } catch {
     store.loadError = 'Could not save the PNG.'
+    return false
   }
 }
 

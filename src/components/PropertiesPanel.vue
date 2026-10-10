@@ -78,6 +78,20 @@ function chooseSide(openSide) {
   fieldError.value = errors[0] || ''
 }
 
+function labelNudge(axis) {
+  const value = dimension.value?.labelShift?.[axis]
+  return typeof value === 'number' ? value : 0
+}
+
+function nudgeLabel(axis, raw, live) {
+  const value = Math.min(1, Math.max(-1, Math.round(Number(raw) * 10) / 10))
+  if (!Number.isFinite(value)) return
+  store.updateDimension(dimension.value.id, (item) => {
+    const current = item.labelShift || { x: 0, y: 0 }
+    item.labelShift = { x: current.x || 0, y: current.y || 0, [axis]: value }
+  }, { live })
+}
+
 function addMeasurement(event) {
   const preset = event.target.value
   event.target.value = ''
@@ -242,6 +256,34 @@ function addMeasurement(event) {
           max="3"
           step="0.1"
           @change="store.updateDimension(dimension.id, (item) => { item.offset = Number($event.target.value) })"
+        />
+      </label>
+
+      <label class="stack-field">
+        <span>Text across {{ labelNudge('x') }}</span>
+        <input
+          :value="labelNudge('x')"
+          type="range"
+          min="-1"
+          max="1"
+          step="0.1"
+          aria-label="Text across"
+          @input="nudgeLabel('x', $event.target.value, true)"
+          @change="nudgeLabel('x', $event.target.value, false)"
+        />
+      </label>
+
+      <label class="stack-field">
+        <span>Text up {{ labelNudge('y') }}</span>
+        <input
+          :value="labelNudge('y')"
+          type="range"
+          min="-1"
+          max="1"
+          step="0.1"
+          aria-label="Text up"
+          @input="nudgeLabel('y', $event.target.value, true)"
+          @change="nudgeLabel('y', $event.target.value, false)"
         />
       </label>
 

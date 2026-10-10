@@ -138,6 +138,41 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .file-input { display: none; }
 
+.ask-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(27, 36, 33, 0.45);
+  padding: 1.5rem;
+}
+
+.ask-card {
+  width: min(26rem, 100%);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 1.25rem 1.3rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+
+.ask-card h2 { margin: 0; font-size: 1.2rem; }
+.ask-card p { margin: 0.55rem 0 1rem; color: var(--ink-soft); }
+
+.ask-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.ask-actions button {
+  border-color: var(--line);
+  background: var(--cream);
+}
+
+.ask-actions .ask-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f6f1e7;
+}
+
 .workspace {
   flex: 1;
   min-height: 0;

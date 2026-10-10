@@ -98,6 +98,14 @@ export function validateDocument(doc) {
     if (!['horizontal', 'vertical'].includes(annotation.orientation)) errors.push('A measurement direction is invalid.')
     if (!Array.isArray(annotation.from) || !Array.isArray(annotation.to)) errors.push('A measurement is missing its ends.')
     if (typeof annotation.offset !== 'number' || !Number.isFinite(annotation.offset)) errors.push('A measurement offset is invalid.')
+    if (annotation.labelShift != null) {
+      const across = annotation.labelShift.x
+      const up = annotation.labelShift.y
+      const ok = typeof across === 'number' && typeof up === 'number'
+        && Number.isFinite(across) && Number.isFinite(up)
+        && Math.abs(across) <= 1 && Math.abs(up) <= 1
+      if (!ok) errors.push('A number can only move up to 1 cm from its arrow.')
+    }
     const label = annotation.label
     if (!label || !['computed', 'manual'].includes(label.mode)) errors.push('A label must be calculated or typed.')
     if (!label || !['given', 'hidden', 'answer'].includes(label.role)) errors.push('A label role must be given, hidden, or answer.')

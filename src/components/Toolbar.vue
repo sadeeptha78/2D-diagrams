@@ -1,13 +1,43 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { UNITS } from '../geometry/shapes.js'
 import { downloadText, slugify } from '../persistence/storage.js'
 import { useDiagramStore } from '../stores/diagram.js'
 
 const store = useDiagramStore()
-const emit = defineEmits(['export-svg', 'export-png', 'fit', 'zoom-in', 'zoom-out'])
+const emit = defineEmits(['export-svg', 'export-png', 'save-and-new', 'fit', 'zoom-in', 'zoom-out'])
 const fileInput = ref(null)
 const name = ref(store.doc.name)
+const askSave = ref(false)
+
+function requestNew() {
+  if (!store.doc.objects.length) return
+  askSave.value = true
+}
+
+function closeAsk() {
+  askSave.value = false
+}
+
+function discardAndStart() {
+  askSave.value = false
+  store.newDiagram()
+}
+
+function saveAndStart() {
+  askSave.value = false
+  emit('save-and-new')
+}
+
+function onAskKey(event) {
+  if (!askSave.value || event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  askSave.value = false
+}
+
+onMounted(() => window.addEventListener('keydown', onAskKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onAskKey))
 
 watch(() => store.doc.name, (value) => {
   name.value = value
@@ -91,6 +121,7 @@ function downloadJson() {
       <button type="button" class="preview-toggle" :aria-pressed="store.preview" @click="store.togglePreview">
         {{ store.preview ? 'Editing view' : 'Student view' }}
       </button>
+      <button type="button" :disabled="!store.doc.objects.length" @click="requestNew">New diagram</button>
       <button type="button" @click="fileInput.click()">Open JSON</button>
       <button type="button" @click="downloadJson">Download JSON</button>
       <button type="button" @click="emit('export-svg')">Export SVG</button>
@@ -98,4 +129,16 @@ function downloadJson() {
       <input ref="fileInput" class="file-input" type="file" accept="application/json,.json" @change="openFile" />
     </div>
   </header>
+
+  <div v-if="askSave" class="ask-layer" @click.self="closeAsk">
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="ask-save-title" @keydown.esc="closeAsk">
+      <h2 id="ask-save-title">Save this diagram?</h2>
+      <p>The page will be cleared. Save the picture first, or start blank without saving.</p>
+      <div class="ask-actions">
+        <button type="button" class="ask-save" @click="saveAndStart">Save PNG</button>
+        <button type="button" @click="discardAndStart">Don't save</button>
+        <button type="button" @click="closeAsk">Cancel</button>
+      </div>
+    </div>
+  </div>
 </template>

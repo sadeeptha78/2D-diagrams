@@ -974,6 +974,7 @@ export function createDimension(shape, preset) {
     from: spec.from.map((n) => round(n)),
     to: spec.to.map((n) => round(n)),
     offset: spec.offset,
+    labelShift: { x: 0, y: 0 },
     label: { mode: 'computed', text: null, role: 'given' },
   }
 }
@@ -1008,10 +1009,13 @@ export function dimensionGeometry(shape, annotation) {
   const a = [annotation.from[0] + shift[0], annotation.from[1] + shift[1]]
   const b = [annotation.to[0] + shift[0], annotation.to[1] + shift[1]]
   const mid = [(a[0] + b[0]) / 2 + nudge[0], (a[1] + b[1]) / 2 + nudge[1]]
+  const placed = toWorld(shape, mid)
+  const across = annotation.labelShift?.x || 0
+  const up = annotation.labelShift?.y || 0
   return {
     from: toWorld(shape, a),
     to: toWorld(shape, b),
-    labelAt: toWorld(shape, mid),
+    labelAt: [placed[0] + across, placed[1] + up],
   }
 }
 

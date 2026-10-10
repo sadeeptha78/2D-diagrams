@@ -9,6 +9,11 @@ import { useDiagramStore } from './stores/diagram.js'
 const store = useDiagramStore()
 const canvas = ref(null)
 
+async function saveThenNew() {
+  const saved = await canvas.value?.exportPng()
+  if (saved) store.newDiagram()
+}
+
 function onKey(event) {
   const tag = event.target?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -37,6 +42,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <Toolbar
       @export-svg="canvas?.exportSvg()"
       @export-png="canvas?.exportPng()"
+      @save-and-new="saveThenNew"
       @fit="canvas?.fit()"
       @zoom-in="canvas?.zoom(1)"
       @zoom-out="canvas?.zoom(-1)"

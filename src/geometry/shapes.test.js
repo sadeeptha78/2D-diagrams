@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { emptyDocument } from './document.js'
+import { exportFrame } from './exportFrame.js'
 import {
   SHAPE_KINDS,
   annotationDisplay,
@@ -6,6 +8,7 @@ import {
   area,
   createDimension,
   createShape,
+  dimensionGeometry,
   dimensionPresets,
   edgesAreOrthogonal,
   localVertices,
@@ -94,6 +97,44 @@ describe('shape geometry', () => {
     expect(dimensionPresets(h).find((entry) => entry.preset === 'gapTop').length).toBe(h.params.gapTop)
     expect(dimensionPresets(h).find((entry) => entry.preset === 'gapBottom').length).toBe(h.params.gapBottom)
     expect(edgesAreOrthogonal(localVertices(t))).toBe(true)
+  })
+
+  it('crops a saved picture to the diagram and its measurements', () => {
+    const panel = { width: 1400, height: 900 }
+    expect(exportFrame(emptyDocument(), panel)).toBeNull()
+
+    const doc = emptyDocument()
+    const shape = createShape('rectangle', [0, 0])
+    doc.objects = [shape]
+    doc.annotations = [createDimension(shape, 'width'), createDimension(shape, 'height')]
+    doc.viewport.boundingBox = [-40, 40, 40, -40]
+    const frame = exportFrame(doc, panel)
+    const [left, top, right, bottom] = frame.box
+    expect(left).toBeLessThan(shape.params.origin[0])
+    expect(bottom).toBeLessThan(shape.params.origin[1])
+    expect(right).toBeGreaterThan(shape.params.origin[0] + shape.params.width)
+    expect(top).toBeGreaterThan(shape.params.origin[1] + shape.params.height)
+    expect(frame.pixelWidth).toBeLessThan(panel.width)
+    expect(frame.pixelHeight).toBeLessThan(panel.height)
+
+    const wide = emptyDocument()
+    const big = createShape('rectangle', [0, 0])
+    big.params.width = 40
+    wide.objects = [big]
+    wide.annotations = [createDimension(big, 'width')]
+    expect(exportFrame(wide, panel).pixelWidth).toBeGreaterThan(frame.pixelWidth)
+  })
+
+  it('moves a measurement number without moving its arrow', () => {
+    const shape = createShape('rectangle', [0, 0])
+    const dimension = createDimension(shape, 'width')
+    const before = dimensionGeometry(shape, dimension)
+    dimension.labelShift = { x: 0.4, y: -0.2 }
+    const after = dimensionGeometry(shape, dimension)
+    expect(after.from).toEqual(before.from)
+    expect(after.to).toEqual(before.to)
+    expect(after.labelAt[0]).toBeCloseTo(before.labelAt[0] + 0.4)
+    expect(after.labelAt[1]).toBeCloseTo(before.labelAt[1] - 0.2)
   })
 
   it('hides answer labels in student view and keeps the real length in the file', () => {

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { labelSizeOf, validateDocument } from '../geometry/document.js'
+import { emptyDocument, labelSizeOf, validateDocument } from '../geometry/document.js'
 import { sixFigures } from '../geometry/sixFigures.js'
 import {
   applyHandle,
@@ -224,7 +224,26 @@ export const useDiagramStore = defineStore('diagram', () => {
     }
   }
 
-  function updateDimension(id, recipe) {
+  let dimensionGesture = null
+
+  function updateDimension(id, recipe, { live = false } = {}) {
+    if (live) {
+      if (dimensionGesture !== id) {
+        remember()
+        dimensionGesture = id
+      }
+      const next = clone(doc.value)
+      const annotation = next.annotations.find((item) => item.id === id)
+      if (!annotation) return
+      recipe(annotation)
+      doc.value = next
+      bump('edit')
+      return
+    }
+    if (dimensionGesture === id) {
+      dimensionGesture = null
+      return
+    }
     commit((draft) => {
       const annotation = draft.annotations.find((item) => item.id === id)
       if (!annotation) return
@@ -335,6 +354,21 @@ export const useDiagramStore = defineStore('diagram', () => {
     bump('edit')
   }
 
+  function newDiagram() {
+    if (!doc.value.objects.length && !doc.value.annotations.length) return
+    const viewport = clone(doc.value.viewport)
+    remember()
+    const fresh = emptyDocument()
+    fresh.units = doc.value.units
+    fresh.labelSize = labelSizeOf(doc.value)
+    fresh.viewport = viewport
+    doc.value = fresh
+    selection.value = null
+    preview.value = false
+    loadError.value = ''
+    bump('edit')
+  }
+
   function loadDocument(candidate) {
     const result = validateDocument(candidate)
     if (!result.ok) {
@@ -396,6 +430,7 @@ export const useDiagramStore = defineStore('diagram', () => {
     setViewport,
     undo,
     redo,
+    newDiagram,
     loadDocument,
     togglePreview,
     requestFit,
